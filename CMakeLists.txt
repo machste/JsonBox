@@ -7,6 +7,12 @@ include(GenerateExportHeader)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 
+option(DEBUG "Enable Debugging (GDB support and no optimisation)." OFF)
+
+if(DEBUG)
+	add_definitions(-O0 -ggdb3)
+endif()
+
 set(JSONBOX_SOURCES
   src/JsonWritingError.cpp
   src/Value.cpp
