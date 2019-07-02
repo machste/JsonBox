@@ -514,8 +514,9 @@ namespace JsonBox {
 		 * sequences are interpreted as two unicode characters, so it doesn't
 		 * support perfect parsing.
 		 * @param input Input stream to read from. Can be a file stream.
+		 * @param check_encoding Check that stream is UTF-8
 		 */
-		void loadFromStream(std::istream &input);
+		void loadFromStream(std::istream &input, bool check_encoding=true);
 
 		/**
 		 * Loads a value from a file. Loads the file then calls the

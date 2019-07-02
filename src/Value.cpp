@@ -619,140 +619,139 @@ namespace JsonBox {
 
 	void Value::loadFromString(std::string const &json) {
 		std::stringstream jsonStream(json);
-		loadFromStream(jsonStream);
+		loadFromStream(jsonStream, false);
 	}
 
-	void Value::loadFromStream(std::istream &input) {
+	void Value::loadFromStream(std::istream &input, bool check_encoding) {
 		char currentCharacter;
 
-		// We check that the stream is in UTF-8.
-		char encoding[2];
-		input.get(encoding[0]);
-		input.get(encoding[1]);
+		if (check_encoding) {
+			// We check that the stream is in UTF-8.
+			input.get(currentCharacter);
+			if (currentCharacter == '\0' && input.peek() == '\0') {
+				throw std::invalid_argument("JSON in input stream is not in UTF-8.");
+			}
+			// We put the character back.
+			input.putback(currentCharacter);
+		}
 
-		if (encoding[0] != '\0' && encoding[1] != '\0') {
-			// We put the characters back.
-			input.putback(encoding[1]);
-			input.putback(encoding[0]);
+		// Boolean value used to stop reading characters after the value
+		// is done loading.
+		bool reading = true;
 
-			// Boolean value used to stop reading characters after the value
-			// is done loading.
-			bool reading = true;
+		while (reading && input.good()) {
+			input.get(currentCharacter);
 
-			while (reading && input.good()) {
-				input.get(currentCharacter);
+			if (input.good()) {
+				if (currentCharacter == Structural::BEGIN_END_STRING) {
+					// The value to be parsed is a string.
+					setString("");
+					readString(input, *data.stringValue);
+					reading = false;
 
-				if (input.good()) {
-					if (currentCharacter == Structural::BEGIN_END_STRING) {
-						// The value to be parsed is a string.
-						setString("");
-						readString(input, *data.stringValue);
-						reading = false;
+				} else if (currentCharacter == Structural::BEGIN_OBJECT) {
+					// The value to be parsed is an object.
+					setObject(Object());
+					readObject(input, *data.objectValue);
+					reading = false;
 
-					} else if (currentCharacter == Structural::BEGIN_OBJECT) {
-						// The value to be parsed is an object.
-						setObject(Object());
-						readObject(input, *data.objectValue);
-						reading = false;
+				} else if (currentCharacter == Structural::BEGIN_ARRAY) {
+					// The value to be parsed is an array.
+					setArray(Array());
+					readArray(input, *data.arrayValue);
+					reading = false;
 
-					} else if (currentCharacter == Structural::BEGIN_ARRAY) {
-						// The value to be parsed is an array.
-						setArray(Array());
-						readArray(input, *data.arrayValue);
-						reading = false;
+				} else if (currentCharacter == Literals::NULL_STRING[0]) {
+					// We try to read the literal 'null'.
+					if (!input.eof()) {
+						input.get(currentCharacter);
 
-					} else if (currentCharacter == Literals::NULL_STRING[0]) {
-						// We try to read the literal 'null'.
-						if (!input.eof()) {
-							input.get(currentCharacter);
+						if (currentCharacter == Literals::NULL_STRING[1]) {
+							if (!input.eof()) {
+								input.get(currentCharacter);
 
-							if (currentCharacter == Literals::NULL_STRING[1]) {
-								if (!input.eof()) {
-									input.get(currentCharacter);
+								if (currentCharacter == Literals::NULL_STRING[2]) {
+									if (!input.eof()) {
+										input.get(currentCharacter);
 
-									if (currentCharacter == Literals::NULL_STRING[2]) {
-										if (!input.eof()) {
-											input.get(currentCharacter);
-
-											if (currentCharacter == Literals::NULL_STRING[3]) {
-												setNull();
-												reading = false;
-
-											} else {
-												throw JsonParsingError("Invalid characters found.");
-											}
+										if (currentCharacter == Literals::NULL_STRING[3]) {
+											setNull();
+											reading = false;
 
 										} else {
-											throw JsonParsingError("JSON input ends incorrectly.");
+											throw JsonParsingError("Invalid characters found.");
 										}
 
 									} else {
-										throw JsonParsingError("Invalid characters found.");
+										throw JsonParsingError("JSON input ends incorrectly.");
 									}
 
 								} else {
-									throw JsonParsingError("JSON ends incorrectly.");
+									throw JsonParsingError("Invalid characters found.");
 								}
 
 							} else {
-								throw JsonParsingError("Invalid characters found");
+								throw JsonParsingError("JSON ends incorrectly.");
 							}
 
 						} else {
-							throw JsonParsingError("JSON input ends incorrectly.");
+							throw JsonParsingError("Invalid characters found");
 						}
 
-					} else if (currentCharacter == Numbers::MINUS ||
-					           (currentCharacter >= Numbers::DIGITS[0] && currentCharacter <= Numbers::DIGITS[9])) {
-						// Numbers can't start with zeroes.
-						input.putback(currentCharacter);
-						readNumber(input, *this);
-						reading = false;
+					} else {
+						throw JsonParsingError("JSON input ends incorrectly.");
+					}
 
-					} else if (currentCharacter == Literals::TRUE_STRING[0]) {
-						// We try to read the boolean literal 'true'.
-						if (!input.eof()) {
-							input.get(currentCharacter);
+				} else if (currentCharacter == Numbers::MINUS ||
+				           (currentCharacter >= Numbers::DIGITS[0] && currentCharacter <= Numbers::DIGITS[9])) {
+					// Numbers can't start with zeroes.
+					input.putback(currentCharacter);
+					readNumber(input, *this);
+					reading = false;
 
-							if (currentCharacter == Literals::TRUE_STRING[1]) {
-								if (!input.eof()) {
-									input.get(currentCharacter);
+				} else if (currentCharacter == Literals::TRUE_STRING[0]) {
+					// We try to read the boolean literal 'true'.
+					if (!input.eof()) {
+						input.get(currentCharacter);
 
-									if (currentCharacter == Literals::TRUE_STRING[2]) {
-										if (!input.eof()) {
-											input.get(currentCharacter);
+						if (currentCharacter == Literals::TRUE_STRING[1]) {
+							if (!input.eof()) {
+								input.get(currentCharacter);
 
-											if (currentCharacter == Literals::TRUE_STRING[3]) {
-												setBoolean(true);
-												reading = false;
-											}
+								if (currentCharacter == Literals::TRUE_STRING[2]) {
+									if (!input.eof()) {
+										input.get(currentCharacter);
+
+										if (currentCharacter == Literals::TRUE_STRING[3]) {
+											setBoolean(true);
+											reading = false;
 										}
 									}
 								}
 							}
 						}
+					}
 
-					} else if (currentCharacter == Literals::FALSE_STRING[0]) {
-						// We try to read the boolean literal 'false'.
-						if (!input.eof()) {
-							input.get(currentCharacter);
+				} else if (currentCharacter == Literals::FALSE_STRING[0]) {
+					// We try to read the boolean literal 'false'.
+					if (!input.eof()) {
+						input.get(currentCharacter);
 
-							if (currentCharacter == Literals::FALSE_STRING[1]) {
-								if (!input.eof()) {
-									input.get(currentCharacter);
+						if (currentCharacter == Literals::FALSE_STRING[1]) {
+							if (!input.eof()) {
+								input.get(currentCharacter);
 
-									if (currentCharacter == Literals::FALSE_STRING[2]) {
-										if (!input.eof()) {
-											input.get(currentCharacter);
+								if (currentCharacter == Literals::FALSE_STRING[2]) {
+									if (!input.eof()) {
+										input.get(currentCharacter);
 
-											if (currentCharacter == Literals::FALSE_STRING[3]) {
-												if (!input.eof()) {
-													input.get(currentCharacter);
+										if (currentCharacter == Literals::FALSE_STRING[3]) {
+											if (!input.eof()) {
+												input.get(currentCharacter);
 
-													if (currentCharacter == Literals::FALSE_STRING[4]) {
-														setBoolean(false);
-														reading = false;
-													}
+												if (currentCharacter == Literals::FALSE_STRING[4]) {
+													setBoolean(false);
+													reading = false;
 												}
 											}
 										}
@@ -760,15 +759,12 @@ namespace JsonBox {
 								}
 							}
 						}
-
-					} else if (!isWhiteSpace(currentCharacter)) {
-						throw JsonParsingError( std::string("Invalid character found: '").append(std::string(1, currentCharacter)).append("'"));
 					}
+
+				} else if (!isWhiteSpace(currentCharacter)) {
+					throw JsonParsingError( std::string("Invalid character found: '").append(std::string(1, currentCharacter)).append("'"));
 				}
 			}
-
-		} else {
-			throw std::invalid_argument("JSON in input stream is not in UTF-8.");
 		}
 	}
 
@@ -977,7 +973,7 @@ namespace JsonBox {
 								// We put the character back and we load the value
 								// from the stream.
 								input.putback(currentCharacter);
-								result[tmpString].loadFromStream(input);
+								result[tmpString].loadFromStream(input, false);
 
 								while (!input.eof() && currentCharacter != Structural::VALUE_SEPARATOR &&
 								       currentCharacter != Structural::END_OBJECT) {
@@ -1017,7 +1013,7 @@ namespace JsonBox {
 					input.putback(currentChar);
 					result.push_back(Value());
 					result.back().type = UNKNOWN;
-					result.back().loadFromStream(input);
+					result.back().loadFromStream(input, false);
 
 					if (result.back().type == UNKNOWN) {
 						result.pop_back();
